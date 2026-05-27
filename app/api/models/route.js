@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +11,7 @@ export async function GET() {
   try {
     const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const { data, error } = await getSupabase()
+    const { data, error } = await getSupabaseAdmin()
       .from('model_testing')
       .select('id, name, response_time, create_time')
       .gte('create_time', cutoffTime)

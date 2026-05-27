@@ -44,43 +44,40 @@ export async function GET(request) {
       );
     }
 
-    // Extract session cookie for authenticated requests
-    const setCookieHeader = loginResponse.headers.get('set-cookie') || '';
-    const cookies = setCookieHeader.split(',').map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
-    
-    // Also try to extract token from login response
-    const token = loginData.data?.token || loginData.data?.access_token || loginData.token;
+    // Extract session cookie using getSetCookie() for proper parsing
+    const setCookies = loginResponse.headers.getSetCookie
+      ? loginResponse.headers.getSetCookie()
+      : [loginResponse.headers.get('set-cookie') || ''];
+    const cookies = setCookies.map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
 
-    // Step 2: Fetch channel data (use cookie auth + token auth)
-    const fetchHeaders = {
-      'Content-Type': 'application/json',
-    };
-    if (cookies) {
-      fetchHeaders['Cookie'] = cookies;
-    }
-    if (token) {
-      fetchHeaders['Authorization'] = `Bearer ${token}`;
-    }
+    // Get user ID for New-Api-User header (required by new-api)
+    const userId = loginData.data?.id || 1;
 
+    // Step 2: Fetch channel data with cookie + New-Api-User header
     const channelResponse = await fetch(
       'https://api.kkdmx.com/api/channel/?p=1&page_size=100&id_sort=false&tag_mode=false',
       {
         method: 'GET',
-        headers: fetchHeaders,
+        headers: {
+          'Cookie': cookies,
+          'New-Api-User': String(userId),
+          'Content-Type': 'application/json',
+        },
       }
     );
 
     if (!channelResponse.ok) {
+      const errBody = await channelResponse.text();
       return NextResponse.json(
-        { error: 'Channel fetch failed', status: channelResponse.status },
+        { error: 'Channel fetch failed', status: channelResponse.status, body: errBody },
         { status: 500 }
       );
     }
 
     const channelData = await channelResponse.json();
     
-    // Extract the data array from response
-    const channels = channelData.data || channelData.results || channelData;
+    // new-api returns data in { data: { items: [...] } } format
+    const channels = channelData.data?.items || channelData.data || channelData;
     
     if (!Array.isArray(channels)) {
       return NextResponse.json(
