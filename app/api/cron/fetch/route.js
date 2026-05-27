@@ -22,8 +22,8 @@ export async function GET(request) {
       }
     }
 
-    // Step 1: Login to kkdmx.com
-    const loginResponse = await fetch('https://api.kkdmx.com/api/login/', {
+    // Step 1: Login to kkdmx.com (new-api uses /api/user/login)
+    const loginResponse = await fetch('https://api.kkdmx.com/api/user/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -34,34 +34,39 @@ export async function GET(request) {
       }),
     });
 
-    if (!loginResponse.ok) {
-      return NextResponse.json(
-        { error: 'Login failed', status: loginResponse.status },
-        { status: 500 }
-      );
-    }
-
     const loginData = await loginResponse.json();
     
-    // Extract token - try common token field names
-    const token = loginData.token || loginData.access_token || loginData.data?.token || loginData.key;
-    
-    if (!token) {
+    // new-api returns HTTP 200 even on failure, check success field
+    if (!loginData.success) {
       return NextResponse.json(
-        { error: 'No token in login response', data: loginData },
+        { error: 'Login failed', message: loginData.message, data: loginData },
         { status: 500 }
       );
     }
 
-    // Step 2: Fetch channel data
+    // Extract session cookie for authenticated requests
+    const setCookieHeader = loginResponse.headers.get('set-cookie') || '';
+    const cookies = setCookieHeader.split(',').map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
+    
+    // Also try to extract token from login response
+    const token = loginData.data?.token || loginData.data?.access_token || loginData.token;
+
+    // Step 2: Fetch channel data (use cookie auth + token auth)
+    const fetchHeaders = {
+      'Content-Type': 'application/json',
+    };
+    if (cookies) {
+      fetchHeaders['Cookie'] = cookies;
+    }
+    if (token) {
+      fetchHeaders['Authorization'] = `Bearer ${token}`;
+    }
+
     const channelResponse = await fetch(
       'https://api.kkdmx.com/api/channel/?p=1&page_size=100&id_sort=false&tag_mode=false',
       {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: fetchHeaders,
       }
     );
 
