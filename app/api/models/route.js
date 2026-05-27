@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET() {
   try {
-    const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const cutoffTime = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
     const { data, error } = await getSupabaseAdmin()
       .from('model_testing')

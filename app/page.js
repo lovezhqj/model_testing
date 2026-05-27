@@ -29,16 +29,33 @@ function formatDateTime(dateStr) {
 }
 
 /**
- * Generate time slot labels for the last 24 hours (every 30 minutes)
+ * Generate time slot labels for the last 48 hours (every 30 minutes = 96 slots)
  */
 function generateTimeSlots() {
   const slots = [];
   const now = new Date();
-  for (let i = 47; i >= 0; i--) {
+  for (let i = 95; i >= 0; i--) {
     const t = new Date(now.getTime() - i * 30 * 60 * 1000);
     slots.push(t);
   }
   return slots;
+}
+
+/**
+ * Calculate health score for sorting: more green = healthier
+ * Score = greenCount * 3 - yellowCount * 1 - redCount * 5
+ */
+function calculateHealthScore(records, slots) {
+  const slotData = mapRecordsToSlots(records, slots);
+  let green = 0, yellow = 0, red = 0;
+  slotData.forEach(record => {
+    if (!record) return;
+    const sec = record.response_time / 1000;
+    if (sec < 5) green++;
+    else if (sec < 20) yellow++;
+    else red++;
+  });
+  return { score: green * 3 - yellow * 1 - red * 5, green, yellow, red };
 }
 
 /**
@@ -154,8 +171,15 @@ export default function DashboardPage() {
     });
   }
 
-  // Generate display time labels (show every 6 slots = 3 hours)
-  const timeLabels = timeSlots.filter((_, i) => i % 6 === 0 || i === timeSlots.length - 1);
+  // Sort models by health score (healthiest first)
+  const sortedData = data?.data ? [...data.data].sort((a, b) => {
+    const scoreA = calculateHealthScore(a.records, timeSlots);
+    const scoreB = calculateHealthScore(b.records, timeSlots);
+    return scoreB.score - scoreA.score;
+  }) : [];
+
+  // Generate display time labels (show every 12 slots = 6 hours for 48h)
+  const timeLabels = timeSlots.filter((_, i) => i % 12 === 0 || i === timeSlots.length - 1);
 
   if (loading && !data) {
     return (
@@ -263,9 +287,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Model Grid */}
-      {data?.data?.length > 0 ? (
+      {sortedData.length > 0 ? (
         <div className="model-grid" id="model-grid">
-          {data.data.map((model) => {
+          {sortedData.map((model) => {
             const slotData = mapRecordsToSlots(model.records, timeSlots);
             return (
               <div key={model.name} className="model-row">
