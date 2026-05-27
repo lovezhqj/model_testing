@@ -6,8 +6,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  * Get status color class based on response time in seconds
  */
 function getStatusColor(responseTimeSec) {
-  if (responseTimeSec < 5) return 'green';
-  if (responseTimeSec < 20) return 'yellow';
+  if (responseTimeSec < 10) return 'green';
+  if (responseTimeSec < 30) return 'yellow';
   return 'red';
 }
 
@@ -51,8 +51,8 @@ function calculateHealthScore(records, slots) {
   slotData.forEach(record => {
     if (!record) return;
     const sec = record.response_time / 1000;
-    if (sec < 5) green++;
-    else if (sec < 20) yellow++;
+    if (sec < 10) green++;
+    else if (sec < 30) yellow++;
     else red++;
   });
   return { score: green * 3 - yellow * 1 - red * 5, green, yellow, red };
@@ -164,8 +164,8 @@ export default function DashboardPage() {
       const latestRecord = model.records[model.records.length - 1];
       if (latestRecord) {
         const sec = latestRecord.response_time / 1000;
-        if (sec < 5) greenCount++;
-        else if (sec < 20) yellowCount++;
+        if (sec < 10) greenCount++;
+        else if (sec < 30) yellowCount++;
         else redCount++;
       }
     });
@@ -243,15 +243,15 @@ export default function DashboardPage() {
           <div className="stat-value">{totalModels}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">正常 (&lt;5s)</div>
+          <div className="stat-label">正常 (&lt;10s)</div>
           <div className="stat-value green">{greenCount}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">偏慢 (5-20s)</div>
+          <div className="stat-label">偏慢 (10-30s)</div>
           <div className="stat-value yellow">{yellowCount}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">异常 (&gt;20s)</div>
+          <div className="stat-label">异常 (&gt;30s)</div>
           <div className="stat-value red">{redCount}</div>
         </div>
       </div>
@@ -260,15 +260,15 @@ export default function DashboardPage() {
       <div className="legend" id="legend">
         <div className="legend-item">
           <div className="legend-block green" />
-          <span>正常 (&lt;5s)</span>
+          <span>正常 (&lt;10s)</span>
         </div>
         <div className="legend-item">
           <div className="legend-block yellow" />
-          <span>偏慢 (5~20s)</span>
+          <span>偏慢 (10~30s)</span>
         </div>
         <div className="legend-item">
           <div className="legend-block red" />
-          <span>异常 (&gt;20s)</span>
+          <span>异常 (&gt;30s)</span>
         </div>
         <div className="legend-item">
           <div className="legend-block gray" />
