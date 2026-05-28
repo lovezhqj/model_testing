@@ -214,7 +214,7 @@ export default function DashboardPage() {
         <div className="header-left">
           <div className="logo-icon">⚡</div>
           <div>
-            <h1 className="header-title">Model Monitor</h1>
+            <h1 className="header-title">KK大模型实时监控</h1>
             <div className="header-subtitle">AI 模型服务状态监控面板</div>
           </div>
         </div>
