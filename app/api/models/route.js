@@ -11,19 +11,37 @@ export async function GET() {
   try {
     const cutoffTime = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
-    const { data, error } = await getSupabaseAdmin()
-      .from('model_testing')
-      .select('id, name, response_time, create_time')
-      .gte('create_time', cutoffTime)
-      .order('create_time', { ascending: true })
-      .limit(5000);
+    // Fetch all records using pagination (Supabase limits to 1000 rows per request)
+    const PAGE_SIZE = 1000;
+    let allData = [];
+    let from = 0;
+    let hasMore = true;
 
-    if (error) {
-      return NextResponse.json(
-        { error: 'Query failed', details: error.message },
-        { status: 500 }
-      );
+    while (hasMore) {
+      const { data: page, error } = await getSupabaseAdmin()
+        .from('model_testing')
+        .select('id, name, response_time, create_time')
+        .gte('create_time', cutoffTime)
+        .order('create_time', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) {
+        return NextResponse.json(
+          { error: 'Query failed', details: error.message },
+          { status: 500 }
+        );
+      }
+
+      allData = allData.concat(page);
+      
+      if (page.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        from += PAGE_SIZE;
+      }
     }
+
+    const data = allData;
 
     // Group by model name
     const grouped = {};
