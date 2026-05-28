@@ -15,7 +15,8 @@ export async function GET() {
       .from('model_testing')
       .select('id, name, response_time, create_time')
       .gte('create_time', cutoffTime)
-      .order('create_time', { ascending: true });
+      .order('create_time', { ascending: true })
+      .limit(5000);
 
     if (error) {
       return NextResponse.json(
