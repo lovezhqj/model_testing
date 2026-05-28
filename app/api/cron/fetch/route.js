@@ -44,11 +44,26 @@ export async function GET(request) {
       );
     }
 
-    // Extract session cookie using getSetCookie() for proper parsing
-    const setCookies = loginResponse.headers.getSetCookie
-      ? loginResponse.headers.getSetCookie()
-      : [loginResponse.headers.get('set-cookie') || ''];
-    const cookies = setCookies.map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
+    // Extract session cookie - multiple fallback strategies for compatibility
+    let cookies = '';
+    
+    // Strategy 1: getSetCookie() (Node.js 18+)
+    if (loginResponse.headers.getSetCookie) {
+      const setCookieArr = loginResponse.headers.getSetCookie();
+      cookies = setCookieArr.map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
+    }
+    
+    // Strategy 2: fallback to raw set-cookie header
+    if (!cookies) {
+      const rawSetCookie = loginResponse.headers.get('set-cookie') || '';
+      // set-cookie may contain multiple cookies joined with comma, but
+      // cookie values with base64 may contain '='. Split carefully by '; " pattern
+      if (rawSetCookie) {
+        cookies = rawSetCookie.split(';')[0].trim();
+      }
+    }
+
+    console.log('[Cron] Cookie extracted:', cookies ? `${cookies.substring(0, 40)}...` : 'EMPTY');
 
     // Get user ID for New-Api-User header (required by new-api)
     const userId = loginData.data?.id || 1;
@@ -66,8 +81,11 @@ export async function GET(request) {
       }
     );
 
+    console.log('[Cron] Channel response status:', channelResponse.status);
+
     if (!channelResponse.ok) {
       const errBody = await channelResponse.text();
+      console.error('[Cron] Channel fetch failed:', channelResponse.status, errBody);
       return NextResponse.json(
         { error: 'Channel fetch failed', status: channelResponse.status, body: errBody },
         { status: 500 }
