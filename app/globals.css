@@ -331,14 +331,24 @@ body::after {
 }
 
 .timeline-name-col {
-  width: 330px;
-  min-width: 330px;
+  width: 280px;
+  min-width: 280px;
   font-size: 12px;
   color: var(--text-muted);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding-right: 16px;
+  padding-right: 12px;
+}
+
+.timeline-avail-col {
+  width: 80px;
+  min-width: 80px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-align: center;
+  padding: 0 4px;
 }
 
 .timeline-times {
@@ -380,16 +390,52 @@ body::after {
 }
 
 .model-name {
-  width: 330px;
-  min-width: 330px;
+  width: 280px;
+  min-width: 280px;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-right: 16px;
+  padding-right: 12px;
   font-family: var(--font-mono);
+}
+
+.avail-badge {
+  width: 80px;
+  min-width: 80px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+
+.avail-badge.high {
+  color: var(--green-glow);
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.avail-badge.medium {
+  color: var(--yellow-glow);
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.2);
+}
+
+.avail-badge.low {
+  color: var(--red-glow);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.avail-badge.na {
+  color: var(--text-muted);
+  background: var(--gray-bg);
+  border: 1px solid var(--gray-border);
 }
 
 .status-blocks {
@@ -612,9 +658,16 @@ body::after {
 
   .timeline-name-col,
   .model-name {
-    width: 200px;
-    min-width: 200px;
+    width: 160px;
+    min-width: 160px;
     font-size: 11px;
+  }
+
+  .timeline-avail-col,
+  .avail-badge {
+    width: 64px;
+    min-width: 64px;
+    font-size: 10px;
   }
 
   .status-block {
@@ -629,9 +682,17 @@ body::after {
 @media (max-width: 600px) {
   .timeline-name-col,
   .model-name {
-    width: 140px;
-    min-width: 140px;
+    width: 100px;
+    min-width: 100px;
     font-size: 10px;
+  }
+
+  .timeline-avail-col,
+  .avail-badge {
+    width: 50px;
+    min-width: 50px;
+    font-size: 9px;
+    padding: 3px 4px;
   }
 
   .stats-bar {

@@ -133,8 +133,8 @@ export async function GET(request) {
       );
     }
 
-    // Step 5: Clean up data older than 48 hours
-    const cutoffTime = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    // Step 5: Clean up data older than 7 days
+    const cutoffTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { error: deleteError } = await getSupabaseAdmin()
       .from('model_testing')
       .delete()

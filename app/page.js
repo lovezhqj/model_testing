@@ -42,30 +42,16 @@ function generateTimeSlots() {
 }
 
 /**
- * Calculate health score for sorting: more green = healthier
- * Score = greenCount * 3 - yellowCount * 1 - redCount * 5
- */
-function calculateHealthScore(records, slots) {
-  const slotData = mapRecordsToSlots(records, slots);
-  let green = 0, yellow = 0, red = 0;
-  slotData.forEach(record => {
-    if (!record) return;
-    const sec = record.response_time / 1000;
-    if (sec < 10) green++;
-    else if (sec < 30) yellow++;
-    else red++;
-  });
-  return { score: green * 3 - yellow * 1 - red * 5, green, yellow, red };
-}
-
-/**
- * Assign records to nearest time slot
+ * Assign records to nearest time slot (only uses records from last 48h)
  */
 function mapRecordsToSlots(records, slots) {
   const result = new Array(slots.length).fill(null);
+  const cutoff48h = Date.now() - 48 * 60 * 60 * 1000;
   
   records.forEach(record => {
     const recordTime = new Date(record.create_time).getTime();
+    if (recordTime < cutoff48h) return; // skip records older than 48h for display
+    
     let bestIdx = -1;
     let bestDist = Infinity;
     
@@ -84,6 +70,16 @@ function mapRecordsToSlots(records, slots) {
   });
   
   return result;
+}
+
+/**
+ * Get CSS class for availability rate badge
+ */
+function getAvailClass(rate) {
+  if (rate === null) return 'na';
+  if (rate >= 90) return 'high';
+  if (rate >= 60) return 'medium';
+  return 'low';
 }
 
 export default function DashboardPage() {
@@ -171,12 +167,8 @@ export default function DashboardPage() {
     });
   }
 
-  // Sort models by health score (healthiest first)
-  const sortedData = data?.data ? [...data.data].sort((a, b) => {
-    const scoreA = calculateHealthScore(a.records, timeSlots);
-    const scoreB = calculateHealthScore(b.records, timeSlots);
-    return scoreB.score - scoreA.score;
-  }) : [];
+  // Data is already sorted by 5-day availability from the API
+  const sortedData = data?.data || [];
 
   // Generate display time labels (show every 12 slots = 6 hours for 48h)
   const timeLabels = timeSlots.filter((_, i) => i % 12 === 0 || i === timeSlots.length - 1);
@@ -279,6 +271,8 @@ export default function DashboardPage() {
       {/* Timeline Header */}
       <div className="timeline-header" id="timeline-header">
         <div className="timeline-name-col">模型名称</div>
+        <div className="timeline-avail-col">2天可用率</div>
+        <div className="timeline-avail-col">5天可用率</div>
         <div className="timeline-times">
           {timeLabels.map((t, i) => (
             <span key={i} className="timeline-time">{formatTime(t)}</span>
@@ -294,6 +288,12 @@ export default function DashboardPage() {
             return (
               <div key={model.name} className="model-row">
                 <div className="model-name" title={model.name}>{model.name}</div>
+                <div className={`avail-badge ${getAvailClass(model.avail_2d)}`}>
+                  {model.avail_2d !== null ? `${model.avail_2d}%` : 'N/A'}
+                </div>
+                <div className={`avail-badge ${getAvailClass(model.avail_5d)}`}>
+                  {model.avail_5d !== null ? `${model.avail_5d}%` : 'N/A'}
+                </div>
                 <div className="status-blocks">
                   {slotData.map((record, idx) => {
                     const color = record 
@@ -345,7 +345,7 @@ export default function DashboardPage() {
 
       {/* Footer */}
       <footer className="footer" id="dashboard-footer">
-        <p>Model Monitor · 每 30 分钟自动采集 · 数据保留 48 小时</p>
+        <p>KK大模型实时监控 · 每 30 分钟自动采集 · 数据保留 7 天</p>
       </footer>
     </div>
   );
