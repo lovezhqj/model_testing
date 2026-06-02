@@ -271,8 +271,8 @@ export default function DashboardPage() {
       {/* Timeline Header */}
       <div className="timeline-header" id="timeline-header">
         <div className="timeline-name-col">模型名称</div>
-        <div className="timeline-avail-col">2天可用率</div>
         <div className="timeline-avail-col">5天可用率</div>
+        <div className="timeline-avail-col avail-col-last">2天可用率</div>
         <div className="timeline-times">
           {timeLabels.map((t, i) => (
             <span key={i} className="timeline-time">{formatTime(t)}</span>
@@ -288,11 +288,11 @@ export default function DashboardPage() {
             return (
               <div key={model.name} className="model-row">
                 <div className="model-name" title={model.name}>{model.name}</div>
-                <div className={`avail-badge ${getAvailClass(model.avail_2d)}`}>
-                  {model.avail_2d !== null ? `${model.avail_2d}%` : 'N/A'}
-                </div>
                 <div className={`avail-badge ${getAvailClass(model.avail_5d)}`}>
                   {model.avail_5d !== null ? `${model.avail_5d}%` : 'N/A'}
+                </div>
+                <div className={`avail-badge avail-badge-last ${getAvailClass(model.avail_2d)}`}>
+                  {model.avail_2d !== null ? `${model.avail_2d}%` : 'N/A'}
                 </div>
                 <div className="status-blocks">
                   {slotData.map((record, idx) => {

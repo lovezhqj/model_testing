@@ -351,6 +351,14 @@ body::after {
   padding: 0 4px;
 }
 
+.avail-col-last {
+  margin-right: 12px;
+}
+
+.avail-badge-last {
+  margin-right: 12px;
+}
+
 .timeline-times {
   flex: 1;
   display: flex;
