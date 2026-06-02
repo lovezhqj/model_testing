@@ -352,10 +352,12 @@ body::after {
 }
 
 .avail-col-last {
+  margin-left: 8px;
   margin-right: 12px;
 }
 
 .avail-badge-last {
+  margin-left: 8px;
   margin-right: 12px;
 }
 
