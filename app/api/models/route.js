@@ -10,7 +10,6 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const now = Date.now();
-    const cutoff7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
     const cutoff5d = new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString();
     const cutoff2d = new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -24,7 +23,7 @@ export async function GET() {
       const { data: page, error } = await getSupabaseAdmin()
         .from('model_testing')
         .select('id, name, response_time, create_time')
-        .gte('create_time', cutoff7d)
+        .gte('create_time', cutoff5d)
         .order('create_time', { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
 
@@ -53,12 +52,6 @@ export async function GET() {
         grouped[record.name] = { records: [], stats2d: { total: 0, nonRed: 0 }, stats5d: { total: 0, nonRed: 0 } };
       }
       const entry = grouped[record.name];
-      entry.records.push({
-        id: record.id,
-        response_time: record.response_time,
-        create_time: record.create_time,
-      });
-
       const isRed = record.response_time / 1000 >= 30;
 
       // 5-day availability (all records within 5 days)
@@ -71,6 +64,13 @@ export async function GET() {
       if (record.create_time >= cutoff2d) {
         entry.stats2d.total++;
         if (!isRed) entry.stats2d.nonRed++;
+        
+        // Only return 2-day (48-hour) records to reduce payload size
+        entry.records.push({
+          id: record.id,
+          response_time: record.response_time,
+          create_time: record.create_time,
+        });
       }
     });
 
@@ -89,7 +89,7 @@ export async function GET() {
       data: result,
       total_models: result.length,
       total_records: data.length,
-      query_from: cutoff7d,
+      query_from: cutoff5d,
     });
   } catch (error) {
     console.error('Models API error:', error);
