@@ -22,79 +22,153 @@ export async function GET(request) {
       }
     }
 
-    // Step 1: Login to kkdmx.com (new-api uses /api/user/login)
-    const loginResponse = await fetch('https://api.kkdmx.com/api/user/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: process.env.KKDMX_USERNAME,
-        password: process.env.KKDMX_PASSWORD,
-      }),
-    });
+    // Step 1: Load authorization credentials from Supabase
+    const supabase = getSupabaseAdmin();
+    const { data: authData, error: authError } = await supabase
+      .from('auth_config')
+      .select('key, value');
 
-    const loginData = await loginResponse.json();
-    
-    // new-api returns HTTP 200 even on failure, check success field
-    if (!loginData.success) {
-      return NextResponse.json(
-        { error: 'Login failed', message: loginData.message, data: loginData },
-        { status: 500 }
-      );
-    }
-
-    // Extract session cookie - multiple fallback strategies for compatibility
     let cookies = '';
-    
-    // Strategy 1: getSetCookie() (Node.js 18+)
-    if (loginResponse.headers.getSetCookie) {
-      const setCookieArr = loginResponse.headers.getSetCookie();
-      cookies = setCookieArr.map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
-    }
-    
-    // Strategy 2: fallback to raw set-cookie header
-    if (!cookies) {
-      const rawSetCookie = loginResponse.headers.get('set-cookie') || '';
-      // set-cookie may contain multiple cookies joined with comma, but
-      // cookie values with base64 may contain '='. Split carefully by '; " pattern
-      if (rawSetCookie) {
-        cookies = rawSetCookie.split(';')[0].trim();
+    let userId = '1';
+    let hasDbAuth = false;
+
+    if (!authError && authData && authData.length > 0) {
+      const configs = {};
+      authData.forEach(item => {
+        configs[item.key] = item.value;
+      });
+      if (configs['cookies'] && configs['user_id']) {
+        cookies = configs['cookies'];
+        userId = configs['user_id'];
+        hasDbAuth = true;
+        console.log('[Cron] Loaded credentials from Supabase. User ID:', userId);
       }
     }
 
-    console.log('[Cron] Cookie extracted:', cookies ? `${cookies.substring(0, 40)}...` : 'EMPTY');
+    let channelResponse;
+    let channelData;
+    let fetchSuccessful = false;
 
-    // Get user ID for New-Api-User header (required by new-api)
-    const userId = loginData.data?.id || 1;
+    if (hasDbAuth) {
+      try {
+        console.log('[Cron] Attempting fetch with Supabase credentials...');
+        channelResponse = await fetch(
+          'https://api.kkdmx.com/api/channel/?p=1&page_size=100&id_sort=false&tag_mode=false',
+          {
+            method: 'GET',
+            headers: {
+              'Cookie': cookies,
+              'New-Api-User': String(userId),
+              'Content-Type': 'application/json',
+            },
+          }
+        );
 
-    // Step 2: Fetch channel data with cookie + New-Api-User header
-    const channelResponse = await fetch(
-      'https://api.kkdmx.com/api/channel/?p=1&page_size=100&id_sort=false&tag_mode=false',
-      {
-        method: 'GET',
+        if (channelResponse.ok) {
+          channelData = await channelResponse.json();
+          // Check if New API returned success
+          if (channelData && channelData.success !== false) {
+            fetchSuccessful = true;
+            console.log('[Cron] Fetch successful using Supabase credentials.');
+          } else {
+            console.warn('[Cron] Supabase credentials returned failure response:', channelData);
+          }
+        } else {
+          console.warn('[Cron] Supabase credentials fetch failed with status:', channelResponse.status);
+        }
+      } catch (err) {
+        console.error('[Cron] Error during initial fetch:', err.message);
+      }
+    }
+
+    // Fallback: If DB auth is missing or failed, try username/password login
+    if (!fetchSuccessful) {
+      console.log('[Cron] DB auth failed or missing. Performing account/password fallback login...');
+      if (!process.env.KKDMX_USERNAME || !process.env.KKDMX_PASSWORD) {
+        return NextResponse.json(
+          { error: 'Unauthorized', message: 'No valid credentials in Supabase and no KKDMX_USERNAME/KKDMX_PASSWORD defined.' },
+          { status: 401 }
+        );
+      }
+
+      const loginResponse = await fetch('https://api.kkdmx.com/api/user/login', {
+        method: 'POST',
         headers: {
-          'Cookie': cookies,
-          'New-Api-User': String(userId),
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          username: process.env.KKDMX_USERNAME,
+          password: process.env.KKDMX_PASSWORD,
+        }),
+      });
+
+      const loginData = await loginResponse.json();
+      if (!loginData.success) {
+        return NextResponse.json(
+          { error: 'Fallback login failed', message: loginData.message, data: loginData },
+          { status: 500 }
+        );
       }
-    );
 
-    console.log('[Cron] Channel response status:', channelResponse.status);
+      // Extract cookie
+      cookies = '';
+      if (loginResponse.headers.getSetCookie) {
+        const setCookieArr = loginResponse.headers.getSetCookie();
+        cookies = setCookieArr.map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
+      }
+      if (!cookies) {
+        const rawSetCookie = loginResponse.headers.get('set-cookie') || '';
+        if (rawSetCookie) {
+          cookies = rawSetCookie.split(';')[0].trim();
+        }
+      }
 
-    if (!channelResponse.ok) {
-      const errBody = await channelResponse.text();
-      console.error('[Cron] Channel fetch failed:', channelResponse.status, errBody);
-      return NextResponse.json(
-        { error: 'Channel fetch failed', status: channelResponse.status, body: errBody },
-        { status: 500 }
+      userId = String(loginData.data?.id || 1);
+      const token = loginData.data?.token || '';
+
+      console.log('[Cron] Fallback login successful. Extracted Cookie & User ID:', userId);
+
+      // Save the new credentials back to Supabase
+      try {
+        const upsertData = [
+          { key: 'cookies', value: cookies, updated_at: new Date().toISOString() },
+          { key: 'user_id', value: userId, updated_at: new Date().toISOString() },
+          { key: 'token', value: token, updated_at: new Date().toISOString() },
+        ];
+        await supabase.from('auth_config').upsert(upsertData, { onConflict: 'key' });
+        console.log('[Cron] Saved updated credentials to Supabase.');
+      } catch (dbErr) {
+        console.error('[Cron] Failed to save updated credentials to Supabase:', dbErr.message);
+      }
+
+      // Try fetching again
+      channelResponse = await fetch(
+        'https://api.kkdmx.com/api/channel/?p=1&page_size=100&id_sort=false&tag_mode=false',
+        {
+          method: 'GET',
+          headers: {
+            'Cookie': cookies,
+            'New-Api-User': userId,
+            'Content-Type': 'application/json',
+          },
+        }
       );
+
+      console.log('[Cron] Fallback channel response status:', channelResponse.status);
+
+      if (!channelResponse.ok) {
+        const errBody = await channelResponse.text();
+        console.error('[Cron] Fallback channel fetch failed:', channelResponse.status, errBody);
+        return NextResponse.json(
+          { error: 'Channel fetch failed after fallback login', status: channelResponse.status, body: errBody },
+          { status: 500 }
+        );
+      }
+
+      channelData = await channelResponse.json();
     }
 
-    const channelData = await channelResponse.json();
-    
-    // new-api returns data in { data: { items: [...] } } format
+    // Parse channels list
     const channels = channelData.data?.items || channelData.data || channelData;
     
     if (!Array.isArray(channels)) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 
 /**
  * Get status color class based on response time in seconds
@@ -90,6 +91,7 @@ export default function DashboardPage() {
   const [countdown, setCountdown] = useState(300); // 5 minute refresh
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: null });
   const tooltipRef = useRef(null);
+  const [authorized, setAuthorized] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -108,9 +110,24 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Initial fetch
+  // Initial fetch & check authorization
   useEffect(() => {
     fetchData();
+
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/auth');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success) {
+            setAuthorized(json.authorized);
+          }
+        }
+      } catch (e) {
+        console.error('Check auth failed:', e);
+      }
+    }
+    checkAuth();
   }, [fetchData]);
 
   // Auto refresh countdown
@@ -211,6 +228,15 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="header-right">
+          <Link href="/auth" style={{ textDecoration: 'none' }}>
+            <div className="status-badge" style={{ cursor: 'pointer', border: '1px solid rgba(78, 124, 255, 0.25)' }}>
+              <span className={`status-dot ${authorized === true ? '' : 'offline'}`} />
+              <span style={{ fontSize: '13px' }}>
+                {authorized === null ? '检查授权...' : (authorized ? '🔑 已授权' : '🔑 未授权')}
+              </span>
+            </div>
+          </Link>
+
           <div className="status-badge" id="status-badge">
             <span className={`status-dot ${data?.data?.length ? '' : 'offline'}`} />
             <span>
