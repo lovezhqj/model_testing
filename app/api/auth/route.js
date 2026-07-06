@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/auth: return current auth status
 export async function GET() {
   try {

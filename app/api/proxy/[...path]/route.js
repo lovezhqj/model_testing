@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
 const TARGET_HOST = 'https://api.kkdmx.com';
 
 async function handle(request, context) {
