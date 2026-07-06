@@ -158,9 +158,9 @@ export default function AuthPage() {
 
     const initialTimestamp = authStatus?.updated_at || null;
     
-    // Open targeted login page through proxy
+    // Open targeted login page — /login goes through the fallback rewrite to /api/proxy/login
     const popup = window.open(
-      '/api/proxy/login',
+      '/login',
       'kkdmx_auth',
       `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`
     );
