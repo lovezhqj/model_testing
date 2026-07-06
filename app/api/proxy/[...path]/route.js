@@ -17,8 +17,9 @@ async function handle(request, context) {
     const headers = new Headers();
     request.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
-      // Don't forward host and some other headers to prevent conflict
-      if (!['host', 'connection', 'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform'].includes(lowerKey)) {
+      // Don't forward host and some other headers to prevent conflict, and strip accept-encoding
+      // so the upstream server returns plain data instead of compressed.
+      if (!['host', 'connection', 'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform', 'accept-encoding'].includes(lowerKey)) {
         headers.set(key, value);
       }
     });
@@ -53,6 +54,21 @@ async function handle(request, context) {
     const responseHeaders = new Headers();
     response.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
+      
+      // Strip encoding, length, CSP and frame headers to prevent browser blocks or decoding errors.
+      // Since fetch decompresses the response automatically, forwarding content-encoding/length
+      // causes browsers to fail with content decoding errors or truncate the response.
+      if ([
+        'content-encoding', 
+        'content-length', 
+        'content-security-policy', 
+        'x-frame-options', 
+        'frame-options', 
+        'transfer-encoding'
+      ].includes(lowerKey)) {
+        return;
+      }
+
       if (lowerKey === 'location') {
         // Rewrite location header so browser stays in proxy domain
         let locationUrl = value;
@@ -125,9 +141,10 @@ async function handle(request, context) {
       });
     }
 
-    // Pipe response body
-    const responseBody = response.body;
-    return new Response(responseBody, {
+    // Convert response body to ArrayBuffer before returning
+    // This is safer and more robust in Serverless environments than forwarding response.body stream directly.
+    const arrayBuffer = await response.arrayBuffer();
+    return new Response(arrayBuffer, {
       status: response.status,
       headers: responseHeaders,
     });
