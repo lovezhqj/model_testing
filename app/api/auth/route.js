@@ -111,3 +111,42 @@ export async function POST() {
     return NextResponse.json({ success: false, error: '网络错误: ' + error.message }, { status: 500 });
   }
 }
+
+// PUT /api/auth: Save credentials received from client-side interceptor
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { token, userId, cookies } = body;
+
+    if (!token && !userId && !cookies) {
+      return NextResponse.json({ success: false, error: 'No credentials provided' }, { status: 400 });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const now = new Date().toISOString();
+    const upsertData = [];
+
+    if (token) upsertData.push({ key: 'token', value: token, updated_at: now });
+    if (userId) upsertData.push({ key: 'user_id', value: String(userId), updated_at: now });
+    if (cookies) upsertData.push({ key: 'cookies', value: cookies, updated_at: now });
+
+    // If we got a token but no cookies, store an empty cookies entry so the
+    // 'authorized' check (which requires both cookies and user_id) can pass
+    // when using token-based auth instead.
+    if (token && userId && !cookies) {
+      upsertData.push({ key: 'cookies', value: `session_token=${token}`, updated_at: now });
+    }
+
+    const { error } = await supabase.from('auth_config').upsert(upsertData, { onConflict: 'key' });
+    if (error) {
+      console.error('[Auth PUT] Failed to save credentials:', error.message);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    console.log('[Auth PUT] Credentials saved successfully. userId:', userId, 'token:', token ? 'PRESENT' : 'EMPTY');
+    return NextResponse.json({ success: true, message: 'Credentials saved' });
+  } catch (error) {
+    console.error('[Auth PUT] Error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

@@ -84,14 +84,70 @@ export default function AuthPage() {
             : prev
         );
       }
-    }, 1000);
+    }, 2000);
 
     // Safety timeout: 5 minutes
     setTimeout(() => {
       clearInterval(interval);
       setPolling(false);
     }, 5 * 60 * 1000);
+
+    return interval;
   };
+
+  // Listen for postMessage from the popup's injected interceptor script
+  useEffect(() => {
+    let popupRef = null;
+    let pollingInterval = null;
+
+    function handleMessage(event) {
+      if (event.data?.type === 'kkdmx_auth_success') {
+        const { token, userId } = event.data;
+        console.log('[Auth] Received postMessage credentials:', { userId, token: token ? 'PRESENT' : 'EMPTY' });
+        
+        // Save credentials to Supabase via PUT /api/auth
+        fetch('/api/auth', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, userId }),
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              setPolling(false);
+              if (pollingInterval) clearInterval(pollingInterval);
+              setTestResult({ type: 'success', message: '🎉 登录成功！系统已捕获并保存了您的授权信息。' });
+              fetchStatus(false);
+              
+              // Close the popup after a short delay
+              setTimeout(() => {
+                if (popupRef && !popupRef.closed) {
+                  popupRef.close();
+                }
+              }, 500);
+            } else {
+              setTestResult({ type: 'error', message: '保存凭据失败: ' + (data.error || '未知错误') });
+            }
+          })
+          .catch(err => {
+            console.error('[Auth] Failed to save credentials:', err);
+            setTestResult({ type: 'error', message: '保存凭据时发生网络错误' });
+          });
+      }
+    }
+
+    window.addEventListener('message', handleMessage);
+    
+    // Expose refs so handleAuthorize can set them
+    window.__authPopupRef = (ref) => { popupRef = ref; };
+    window.__authPollingRef = (ref) => { pollingInterval = ref; };
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      delete window.__authPopupRef;
+      delete window.__authPollingRef;
+    };
+  }, [fetchStatus]);
 
   // Open authorization popup
   const handleAuthorize = () => {
@@ -111,7 +167,10 @@ export default function AuthPage() {
 
     if (popup) {
       popup.focus();
-      startPolling(popup, initialTimestamp);
+      // Store ref for postMessage handler
+      if (window.__authPopupRef) window.__authPopupRef(popup);
+      const interval = startPolling(popup, initialTimestamp);
+      if (window.__authPollingRef) window.__authPollingRef(interval);
     } else {
       setTestResult({ type: 'error', message: '弹窗被浏览器拦截，请允许本站弹出窗口后重试。' });
     }

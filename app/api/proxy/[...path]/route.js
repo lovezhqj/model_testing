@@ -148,7 +148,49 @@ async function handle(request, context) {
     // Return the response
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('text/html')) {
-      const htmlText = await response.text();
+      let htmlText = await response.text();
+      
+      // Inject a script that monkey-patches fetch to intercept login responses.
+      // When the SPA successfully logs in, the script extracts the token/userId
+      // from the JSON response body and posts it to the parent window (opener).
+      const interceptorScript = `<script>
+(function(){
+  var _f=window.fetch;
+  window.fetch=function(){
+    var args=arguments;
+    return _f.apply(this,args).then(function(r){
+      try{
+        var url=typeof args[0]==='string'?args[0]:(args[0]&&args[0].url)||'';
+        var method=(args[1]&&args[1].method)||'GET';
+        if(url.indexOf('/api/user/login')!==-1&&method.toUpperCase()==='POST'){
+          var c=r.clone();
+          c.json().then(function(d){
+            if(d&&d.success&&d.data){
+              if(window.opener){
+                window.opener.postMessage({
+                  type:'kkdmx_auth_success',
+                  token:d.data.token||'',
+                  userId:String(d.data.id||1),
+                  username:d.data.username||''
+                },'*');
+              }
+            }
+          }).catch(function(){});
+        }
+      }catch(e){}
+      return r;
+    });
+  };
+})();
+</script>`;
+      
+      // Inject before </head> for early loading, or append if no </head>
+      if (htmlText.includes('</head>')) {
+        htmlText = htmlText.replace('</head>', interceptorScript + '</head>');
+      } else {
+        htmlText += interceptorScript;
+      }
+      
       return new Response(htmlText, {
         status: response.status,
         headers: responseHeaders,
