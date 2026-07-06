@@ -9,9 +9,21 @@ async function handle(request, context) {
     const pathSegments = params?.path || [];
     const urlPath = pathSegments.join('/');
     const searchParams = new URL(request.url).search;
-    const targetUrl = `${TARGET_HOST}/${urlPath}${searchParams}`;
+    
+    // Determine if it is an API call, static asset, or contains a file extension.
+    // If not, it is a frontend SPA route (like /login or /register) and we should
+    // serve the target site's root index.html so the client-side router can render it.
+    const isStaticOrApi = 
+      urlPath.startsWith('api/') || 
+      urlPath.startsWith('assets/') || 
+      urlPath.startsWith('static/') || 
+      urlPath.includes('.');
 
-    console.log(`[Proxy] Routing ${request.method} request to: ${targetUrl}`);
+    const targetUrl = isStaticOrApi 
+      ? `${TARGET_HOST}/${urlPath}${searchParams}` 
+      : `${TARGET_HOST}/`;
+
+    console.log(`[Proxy] Routing ${request.method} request to: ${targetUrl} (original path: ${urlPath})`);
 
     // Prepare headers
     const headers = new Headers();

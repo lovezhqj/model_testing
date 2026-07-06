@@ -3,6 +3,14 @@ const nextConfig = {
   async rewrites() {
     return [
       {
+        source: '/login',
+        destination: '/api/proxy/login',
+      },
+      {
+        source: '/register',
+        destination: '/api/proxy/register',
+      },
+      {
         source: '/assets/:path*',
         destination: '/api/proxy/assets/:path*',
       },
