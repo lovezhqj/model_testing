@@ -150,11 +150,27 @@ async function handle(request, context) {
     if (contentType.includes('text/html')) {
       let htmlText = await response.text();
       
-      // Inject a script that monkey-patches fetch to intercept login responses.
-      // When the SPA successfully logs in, the script extracts the token/userId
-      // from the JSON response body and posts it to the parent window (opener).
+      // Inject a script that monkey-patches BOTH fetch AND XMLHttpRequest to
+      // intercept login responses. The new-api SPA uses axios (which is XHR-based),
+      // so we must patch XHR. We also patch fetch as a fallback.
       const interceptorScript = `<script>
 (function(){
+  function notifyOpener(d){
+    if(window.opener){
+      try{
+        window.opener.postMessage({
+          type:'kkdmx_auth_success',
+          token:d.data.token||'',
+          userId:String(d.data.id||1),
+          username:d.data.username||''
+        },'*');
+        console.log('[AuthInterceptor] postMessage sent to opener');
+      }catch(e){console.error('[AuthInterceptor] postMessage error',e);}
+    }else{
+      console.warn('[AuthInterceptor] No window.opener found');
+    }
+  }
+  // Patch fetch
   var _f=window.fetch;
   window.fetch=function(){
     var args=arguments;
@@ -163,23 +179,34 @@ async function handle(request, context) {
         var url=typeof args[0]==='string'?args[0]:(args[0]&&args[0].url)||'';
         var method=(args[1]&&args[1].method)||'GET';
         if(url.indexOf('/api/user/login')!==-1&&method.toUpperCase()==='POST'){
-          var c=r.clone();
-          c.json().then(function(d){
-            if(d&&d.success&&d.data){
-              if(window.opener){
-                window.opener.postMessage({
-                  type:'kkdmx_auth_success',
-                  token:d.data.token||'',
-                  userId:String(d.data.id||1),
-                  username:d.data.username||''
-                },'*');
-              }
-            }
+          r.clone().json().then(function(d){
+            if(d&&d.success&&d.data) notifyOpener(d);
           }).catch(function(){});
         }
       }catch(e){}
       return r;
     });
+  };
+  // Patch XMLHttpRequest (used by axios)
+  var _xhrOpen=XMLHttpRequest.prototype.open;
+  var _xhrSend=XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open=function(method,url){
+    this._intMethod=method;
+    this._intUrl=url;
+    return _xhrOpen.apply(this,arguments);
+  };
+  XMLHttpRequest.prototype.send=function(){
+    var xhr=this;
+    if(xhr._intUrl&&xhr._intUrl.indexOf('/api/user/login')!==-1&&
+       xhr._intMethod&&xhr._intMethod.toUpperCase()==='POST'){
+      xhr.addEventListener('load',function(){
+        try{
+          var d=JSON.parse(xhr.responseText);
+          if(d&&d.success&&d.data) notifyOpener(d);
+        }catch(e){}
+      });
+    }
+    return _xhrSend.apply(this,arguments);
   };
 })();
 </script>`;
