@@ -178,10 +178,16 @@ export async function GET(request) {
       );
     }
 
-    // Step 3: Prepare records for insertion
+    // Blacklist: these models will never be stored
+    const MODEL_BLACKLIST = [
+      'deepseek-v4-flash',
+      'moonshotai/kimi-k2.6',
+    ];
+
+    // Step 3: Prepare records for insertion (excluding blacklisted models)
     const now = new Date().toISOString();
     const records = channels
-      .filter(ch => ch.name && ch.response_time !== undefined)
+      .filter(ch => ch.name && ch.response_time !== undefined && !MODEL_BLACKLIST.includes(ch.name))
       .map(ch => ({
         name: ch.name,
         response_time: ch.response_time,

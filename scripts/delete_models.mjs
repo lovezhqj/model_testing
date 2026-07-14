@@ -17,18 +17,22 @@ for (const line of envContent.split('\n')) {
 
 const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
-const modelName = 'z-ai/glm-5.1';
+const modelNames = [
+  'deepseek-v4-flash',
+  'moonshotai/kimi-k2.6',
+];
 
-console.log(`正在删除模型: ${modelName} ...`);
+for (const modelName of modelNames) {
+  console.log(`正在删除模型: ${modelName} ...`);
 
-const { error, count } = await supabase
-  .from('model_testing')
-  .delete({ count: 'exact' })
-  .eq('name', modelName);
+  const { error, count } = await supabase
+    .from('model_testing')
+    .delete({ count: 'exact' })
+    .eq('name', modelName);
 
-if (error) {
-  console.error(`❌ 删除 ${modelName} 失败:`, error.message);
-  process.exit(1);
-} else {
-  console.log(`✅ 成功删除 ${modelName}，共 ${count ?? '未知数量'} 条记录`);
+  if (error) {
+    console.error(`❌ 删除 ${modelName} 失败:`, error.message);
+  } else {
+    console.log(`✅ 成功删除 ${modelName}，共 ${count ?? '未知数量'} 条记录`);
+  }
 }
